@@ -1,141 +1,119 @@
-# 대한민국 법령 저장소
+# legalize-kr 금융업 내부통제/준법/책무 법령 세트
 
-대한민국 법령을 Git 저장소로 관리합니다. 각 법령은 Markdown 파일이고, 각 개정은 실제 공포일자를 가진 Git commit입니다.
+이 저장소는 `legalize-kr/legalize-kr` 원본에서 금융업, 내부통제, 준법, 책무와 관련된 법령 문서만 남긴 작업용 데이터셋입니다.
 
-[legalize](https://github.com/legalize-dev/legalize) (스페인 법령 Git 프로젝트)에서 영감을 받았습니다.
+AX2 프로젝트 템플릿의 문서/작업관리 구조를 적용해, 이후 분석·요약·그래프화·RAG 전처리 작업을 이어갈 수 있도록 구성했습니다.
 
-> **공지**: 법령 정보를 가져오고 파싱하는 파이프라인이 개선될 경우, 전체 법령 히스토리를 재구성하기 위해 force-push가 실행될 수 있습니다. 이 경우 모든 commit hash가 변경됩니다. 이 저장소를 fork하거나 참조하는 경우, force-push 이후 `git fetch --all && git reset --hard origin/main`으로 동기화해 주세요.
+## Contents
 
-## 빠른 시작
+- `kr/`: 선별된 금융업 관련 법령 원문 Markdown
+- `AGENTS.md`: AI 작업 에이전트 운영 원칙
+- `llms.txt`: LLM용 짧은 진입점
+- `docs/`: LLM wiki와 개발/문서 컨벤션
+- `memory-bank/`: 프로젝트 목적, 진행 상태, 기술 맥락, 이슈 기록
+- `.ai-worklog/`: 세션별 작업 로그
+- `adr/`: 되돌리기 어려운 의사결정 기록
+- `prompts/`: 세션 시작/종료용 재사용 프롬프트
+- `.graphifyignore`: Graphify 입력 제외 규칙
 
-```bash
-git clone https://github.com/legalize-kr/legalize-kr.git
-cd legalize-kr
+## Current Dataset
 
-# 민법 현재 내용 보기
-cat kr/민법/법률.md
+현재 `kr/` 아래에는 금융업/금융기관 관련 법령 중 본문에 다음 주제와 관련된 내용이 있는 폴더만 남겨두었습니다.
 
-# 민법 개정 이력 보기
-git log -- kr/민법/
+- 내부통제
+- 준법 및 준법감시
+- 책무
+- 지배구조
 
-# 민법 시행령과 비교
-diff kr/민법/법률.md kr/민법/시행령.md
+현재 기준:
 
-# 전체 법령에서 특정 단어 검색
-grep -r "개인정보" kr/
+- 법령 폴더: 25개
+- Markdown 파일: 55개
 
-# 특정 날짜의 법령 상태
-git log --before="2025-01-01" -1 -- kr/민법/법률.md
+## GraphRAG Pipeline
+
+이 프로젝트에는 다음 파이프라인이 포함되어 있습니다.
+
+1. `apache/age` Docker 이미지로 Postgres + Apache AGE 실행
+2. `kr/**/*.md` 법령 문서 chunking
+3. chunk와 deterministic vector embedding을 Postgres 테이블에 저장
+4. Qwen/vLLM 호환 LLM으로 entity-edge 추출
+5. 추출 결과를 Apache AGE graph와 관계형 mirror table에 저장
+6. 금융지주사 감사지적사항을 입력받아 vector RAG와 graph search 도구를 호출하는 ReAct 에이전트 실행
+
+### Setup
+
+```powershell
+python -m venv .venv
+.\.venv\Scripts\Activate.ps1
+pip install -e ".[dev]"
+Copy-Item .env.example .env
 ```
 
-## 구조
+`.env`에서 Qwen/vLLM endpoint를 설정합니다. 방식은 `ra-agent`의 model switching 패턴과 맞췄습니다.
 
-```
-kr/
-  {법령명}/
-    {법령구분}.md
-    시행령.md
-    시행규칙.md
-    {파일명}({법령구분}).md
-```
-
-디렉토리명은 법령명에서 띄어쓰기를 제거하여 사용합니다 (예: `민법`, `친일반민족행위자재산의국가귀속에관한특별법`). 이는 [법령 홈페이지](https://www.law.go.kr)의 URL 규칙과 동일합니다.
-
-관련 법령(법률, 시행령, 시행규칙)이 하나의 디렉토리에 함께 관리됩니다.
-시행령과 독립 대통령령 모두 법적으로는 "대통령령"이지만, 시행령은 부모 법률이 있고(`{법률명} 시행령`), 독립 대통령령은 부모 법률 없이 단독으로 존재합니다.
-동일한 구조 경로를 서로 다른 `법령ID`가 공유하면 `파일명(법령구분).md` 형식으로 충돌을 해소합니다.
-
-예시:
-- `kr/민법/법률.md`: 민법
-- `kr/민법/시행령.md`: 민법 시행령
-- `kr/친일반민족행위자재산의국가귀속에관한특별법/법률.md`: 친일반민족행위자 재산의 국가귀속에 관한 특별법
-- `kr/친일반민족행위자재산의국가귀속에관한특별법/시행령.md`: 친일반민족행위자 재산의 국가귀속에 관한 특별법 시행령
-
-### 파일 이름 규칙
-
-| 법령명 패턴 | 디렉토리 | 파일명 |
-|-------------|---------|--------|
-| `{법률명}` (접미사 없음) | `kr/{법률명(띄어쓰기 제거)}/` | `법률.md` |
-| `{법률명} 시행령` | `kr/{법률명(띄어쓰기 제거)}/` | `시행령.md` |
-| `{법률명} 시행규칙` | `kr/{법률명(띄어쓰기 제거)}/` | `시행규칙.md` |
-| 독립 대통령령 (규정, 직제 등) | `kr/{대통령령명(띄어쓰기 제거)}/` | `대통령령.md` |
-| 같은 경로를 다른 `법령ID`가 이미 사용 | 기존 디렉토리 | `{기본파일명}({법령구분}).md` |
-
-## 메타데이터 (YAML Frontmatter)
-
-```yaml
----
-제목: 민법
-법령MST: 284415
-법령ID: "001001"
-법령구분: 법률
-법령구분코드: A0002
-소관부처:
-  - 법무부
-공포일자: 2024-01-02
-공포번호: "19834"
-시행일자: 2024-07-03
-법령분야: 민사
-상태: 시행
-출처: https://www.law.go.kr/법령/민법
----
+```env
+activate_model_name=vllm
+VLLM_BASE_URL=http://localhost:8000/v1
+VLLM_API_KEY=EMPTY
+VLLM_MODEL_NAME=Qwen/Qwen3.5-122B-A10B
+VLLM_ENABLE_THINKING=false
 ```
 
-### 주요 필드
+`activate_model_name=Qwen/...`처럼 모델명을 직접 넣어도 vLLM provider로 해석합니다.
 
-| 필드 | 설명 |
-|------|------|
-| `제목` | 법령명 (Unicode 정규화 적용: `·` → `ㆍ`) |
-| `원본제목` | API 원본 법령명 (정규화된 제목과 다를 경우만 표시) |
-| `법령MST` | 법령 고유 식별자 |
-| `소관부처` | YAML 리스트 (복수 부처 가능) |
-| `상태` | 시행 / 폐지 |
+### Run Postgres + AGE
 
-## 커밋 메시지
-
-법령 커밋은 공포일자를 Git author/committer date로 사용하며, 다음 형식을 따릅니다:
-
-```
-법률: 민법 (일부개정)
-
-법령 전문: https://www.law.go.kr/법령/민법
-제개정문: https://www.law.go.kr/법령/제개정문/민법/(12345,20260317)
-신구법비교: https://www.law.go.kr/법령/신구법비교/민법
-
-공포일자: 2026-03-17 | 공포번호: 12345
-소관부처: 법무부
-법령분야: 민사
-법령MST: 284415
+```powershell
+docker compose up -d postgres-age
+docker compose ps
 ```
 
-> **참고**: Git은 Unix Epoch(1970-01-01) 이전 날짜를 지원하지 않습니다. 이에 해당하는 법령은 커밋 날짜가 1970-01-01로 고정되어 있습니다. 실제 공포일자는 각 파일의 YAML frontmatter `공포일자` 필드에 정확히 기록되어 있습니다.
+### Ingest Legal Chunks
 
-## Unicode 정규화
+```powershell
+python scripts\ingest_legal_corpus.py
+```
 
-법령명에 사용되는 가운뎃점 문자가 통일되지 않은 경우가 있습니다:
-- `·` (U+00B7, Middle Dot) → `ㆍ` (U+318D, Hangul Letter Araea)로 정규화
-- 예: `10·27` → `10ㆍ27`
+현재 로컬 검증 기준으로 55개 문서가 1,520개 chunk로 적재됩니다.
 
-## 관련 저장소
+### Extract Entity-Edge Graph
 
-Legalize-KR은 수집·컴파일러·결과 저장소를 분리해 관리합니다.
+Qwen/vLLM endpoint가 실행 중이어야 합니다.
 
-| 저장소 | 설명 |
-|--------|------|
-| [legalize-kr/legalize-kr](https://github.com/legalize-kr/legalize-kr) | 법령 데이터 (현재 저장소) |
-| [legalize-kr/precedent-kr](https://github.com/legalize-kr/precedent-kr) | 판례 데이터 |
-| [legalize-kr/admrule-kr](https://github.com/legalize-kr/admrule-kr) | 행정규칙 데이터 |
-| [legalize-kr/ordinance-kr](https://github.com/legalize-kr/ordinance-kr) | 자치법규 데이터 |
-| [legalize-kr/legalize-pipeline](https://github.com/legalize-kr/legalize-pipeline) | 공공 데이터 수집 및 캐시 갱신 파이프라인 |
-| [legalize-kr/compiler](https://github.com/legalize-kr/compiler) | `.cache` → bare Git 저장소 컴파일러 |
-| [legalize-kr/cli-tools](https://github.com/legalize-kr/cli-tools) | 공공 데이터 CLI 및 MCP 도구 |
-| [legalize-kr/legalize-web](https://github.com/legalize-kr/legalize-web) | 웹사이트 ([legalize.kr](https://legalize.kr)) |
+```powershell
+python scripts\extract_graph.py --limit 10 --concurrency 20
+```
 
-## 데이터 출처
+`--limit`을 빼면 아직 추출되지 않은 모든 chunk를 처리합니다. `--concurrency`는 비동기 LLM 호출 동시 실행 수이며 기본값은 `20`입니다.
 
-모든 법령 데이터는 [국가법령정보센터 OpenAPI](https://open.law.go.kr)에서 가져옵니다. 법령 원문은 대한민국 정부 공공저작물로 자유롭게 이용 가능합니다.
+AGE graph를 관계형 mirror table 기준으로 재생성해야 할 때는 다음을 실행합니다.
 
-## 라이선스
+```powershell
+python scripts\rebuild_age_graph.py
+```
 
-- 법령 원문: 공공저작물 (대한민국 정부 저작물)
-- 저장소 구조, 메타데이터: MIT
+### Ask The ReAct Audit Agent
+
+```powershell
+python scripts\ask_audit_agent.py
+```
+
+또는 감사지적사항을 직접 입력합니다.
+
+```powershell
+python scripts\ask_audit_agent.py --company "샘플금융지주" --finding "준법감시인의 개선권고 이행상황이 감사위원회에 보고되지 않았다."
+```
+
+에이전트는 `vector_search`, `graph_search`, `get_chunk` 도구를 필요에 따라 호출하고, 관찰 결과를 바탕으로 다음 도구 호출 또는 최종 답변을 결정합니다.
+
+## Source
+
+- 원본 법령 저장소: <https://github.com/legalize-kr/legalize-kr>
+- 적용한 프로젝트 템플릿: <https://github.com/financial-ai-data-business/ax2-project-template>
+
+## Notes
+
+- 이 저장소는 현재 실행 가능한 애플리케이션이 아니라 문서 데이터와 프로젝트 관리 스캐폴드입니다.
+- 원본 저장소에서 관련 없는 법령 폴더는 삭제되어 `git status`에 대량 삭제로 표시됩니다.
+- 민감정보, 원시 대화 로그, 내부 URL, 고객 식별 정보는 저장하지 않습니다.
