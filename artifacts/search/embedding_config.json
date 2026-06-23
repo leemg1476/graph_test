@@ -1,0 +1,8 @@
+{
+  "model": "text-embedding-ada-002",
+  "chunk_chars": 1200,
+  "chunk_overlap": 150,
+  "batch_size": 64,
+  "dimension": 1536,
+  "chunks": 13402
+}

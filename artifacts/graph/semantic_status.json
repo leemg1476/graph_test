@@ -1,0 +1,44 @@
+{
+  "mode": "auto",
+  "provider": "openai",
+  "model": "gpt-5.4-nano-2026-03-17",
+  "docs": 1414,
+  "id": "batch_6a3a8ff755f8819085cddcf61eaf27ab",
+  "completion_window": "24h",
+  "created_at": 1782222839,
+  "endpoint": "/v1/chat/completions",
+  "input_file_id": "file-Pq8ijfRaodtamo4n39vhDA",
+  "object": "batch",
+  "status": "in_progress",
+  "cancelled_at": null,
+  "cancelling_at": null,
+  "completed_at": null,
+  "error_file_id": null,
+  "errors": null,
+  "expired_at": null,
+  "expires_at": 1782309239,
+  "failed_at": null,
+  "finalizing_at": null,
+  "in_progress_at": 1782222902,
+  "metadata": {
+    "job": "semantic_graphify_gpt_5_4_nano"
+  },
+  "output_file_id": null,
+  "request_counts": {
+    "completed": 1397,
+    "failed": 0,
+    "total": 1414
+  },
+  "usage": {
+    "input_tokens": 0,
+    "input_tokens_details": {
+      "cached_tokens": 0
+    },
+    "output_tokens": 0,
+    "output_tokens_details": {
+      "reasoning_tokens": 0
+    },
+    "total_tokens": 0
+  },
+  "completed_outputs": 0
+}
